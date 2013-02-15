@@ -1,0 +1,435 @@
+:meta
+    title   Soft Shadow Mapping
+    tags    webgl 3d howto
+    created 2013-2-15 16:30
+
+:html
+    <style type="text/css">
+        div.example{
+            background-color: #333;
+            width: 500px;
+            height: 300px;
+            position: relative;
+        }
+
+        div.example div.error{
+            color: red;
+            font-weight: bold;
+            text-align: center;
+            position: absolute;
+            top: 5px;
+            width: 500px;
+        }
+        div.example div.error-info{
+            color: white;
+            text-align: center;
+            position: absolute;
+            top: 20px;
+            width: 500px;
+        }
+
+        div.example img{
+            margin: 0;
+            padding: 0;
+        }
+
+        div.example img.toggle-fullscreen{
+            position: absolute;
+            bottom: 0px;
+            right: 5px;
+            cursor: pointer;
+        }
+        div.example canvas{
+            width: 500px;
+            height: 300px;
+            -moz-user-select: none;
+            -webkit-user-select: none;
+            -o-user-select: none;
+            user-select: none;
+            cursor: move;
+        }
+        div.example div.controls{
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+
+        div.example.fullscreen,
+        div.example.fullscreen canvas{
+            width: 100%;
+            height: 100%;
+        }
+        div.example label{
+            color: white;
+        }
+        div.example label,
+        div.example div{
+            text-shadow: 0px 3px 8px black;
+        }
+    </style>
+    <script type="text/javascript" src="framework.js"></script>
+    <script type="text/javascript" src="meshes.js"></script>
+
+Shadow mapping is one of those things that a lot of people struggle with. It is also a very old shadowing technique that has been improved in a variety of ways. I'd like to make a brief trip trough the history of shadow mapping hopefully shedding some light on the topic and introduce you to some very nice techniques.
+
+:toc2
+
+Preface
+=======
+
+The examples in this article use [http://www.khronos.org/webgl/ WebGL] and a set of specific capabilities such as *floating point texture render targets*. You might not have support for these features. In that case the illustrations are non-interactive screenshots.
+
+Scope
+-----
+
+This blog post can't cover all shadowing topics, or even most optimizations you can apply. It will cover the basics of several shadow mapping techniques in a very simple and not optimized setup.
+
+Syntax
+------
+
+All examples and supporting code is written in [http://coffeescript.org/ CoffeeScript]. The reason is that I find CoffeeScript pleasant, it allows me to represent the subject matter clearly and it supports multiline strings (unlike javascript) which makes writing shaders much easier.
+
+Debugging
+---------
+
+To aid shader debugging I have introduced a *custom build* step that seeks out "//essl" and replaces it with a #line directive indicating a sourceline and file. This is not necessary to run, since "//essl" would *just be a comment in essl* otherwise. However if you plan to *toy with the code*, I recommend you *use that buildstep* as it makes debugging shaders *much easier*.
+
+Code
+----
+
+You can obtain the code for all examples on github.
+
+Play
+----
+
+All illustrations are interactive.
+
+*   Left click+drag for changing viewing angles
+*   Scroll for zoom in/out
+*   Stop/Start animations (button top right in the example viewport)
+*   Make fullscreen (button bottom right in the example viewport)
+
+Recommended Reading
+-------------------
+
+You can read everything I'm going to explain here and much more in the [http://www.amazon.com/gp/product/1568814380/ref=as_li_qf_sp_asin_il_tl?ie=UTF8&camp=1789&creative=9325&creativeASIN=1568814 book real-time shadows]
+
+:html
+    <a href="http://www.amazon.com/gp/product/1568814380/ref=as_li_tf_il?ie=UTF8&camp=1789&creative=9325&creativeASIN=1568814380&linkCode=as2&tag=codeflow-20"><img border="0" src="http://ws.assoc-amazon.com/widgets/q?_encoding=UTF8&ASIN=1568814380&Format=_SL160_&ID=AsinImage&MarketPlace=US&ServiceVersion=20070822&WS=1&tag=codeflow-20" ></a><img src="http://www.assoc-amazon.com/e/ir?t=codeflow-20&l=as2&o=1&a=1568814380" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" />
+
+The [https://developer.nvidia.com/gpu-gems GPU Gems series] by nvidia also has a wealth of shadowing information (freely available online)
+
+*   GPU Gems 1, Chapter 9: [http://http.developer.nvidia.com/GPUGems/gpugems_ch09.html Efficient Shadow Volume Rendering]
+*   GPU Gems 1, Chapter 11: [http://http.developer.nvidia.com/GPUGems/gpugems_ch11.html Shadow Map Antialiasing]
+*   GPU Gems 1, Chapter 12: [http://http.developer.nvidia.com/GPUGems/gpugems_ch12.html Omnidirectional Shadow Mapping]
+*   GPU Gems 1, Chapter 13: [http://http.developer.nvidia.com/GPUGems/gpugems_ch13.html Generating Soft Shadows Using Occlusion Interval Maps]
+*   GPU Gems 1, Chapter 14: [http://http.developer.nvidia.com/GPUGems/gpugems_ch14.html Perspective Shadow Maps: Care and Feeding]
+*   GPU Gems 2, Chapter 17: [http://http.developer.nvidia.com/GPUGems2/gpugems2_chapter17.html Efficient Soft-Edged Shadows Using Pixel Shader Branching]
+*   GPU Gems 3, Chapter 8: [http://http.developer.nvidia.com/GPUGems3/gpugems3_ch08.html Summed-Area Variance Shadow Maps]
+*   GPU Gems 3, Chapter 10: [http://http.developer.nvidia.com/GPUGems3/gpugems3_ch10.html Parallel-Split Shadow Maps on Programmable GPUs]
+*   GPU Gems 3, Chapter 11: [http://http.developer.nvidia.com/GPUGems3/gpugems3_ch11.html Efficient and Robust Shadow Volumes Using Hierarchical Occlusion Culling and Geometry Shaders]
+
+Test scene without shadow
+=========================
+
+:html
+    <script type="text/javascript" src="no-shadow.js"></script>
+
+In this [no-shadow.coffee example] a simple spotlight is setup that has the following characteristics:
+
+*   Attenuation with distance
+*   Influence area of 55 degrees
+*   10 degree smoothing for the influence
+*   A simple lambertian surface radiance
+*   A 64x64 pixel shadow map is used (that is a low resolution). The purpose is to visualize error well.
+
+This setup will be the basis for the further examples.
+
+Conventions and Spaces
+----------------------
+
+Since shadow mapping is a variant of projective texturing, it is important to have a clear convention in what "space" a given data point is expressed. I use these conventions.
+
+*   World: The world space, positions and normals in this space are *independent of viewpoint or model transformations*. I prefix variables in this space with "world".
+*   Camera: This space expresses things in relation to the *observers viewpoint*. The prefix "cam" is used.
+*   Light: This space expresses things in relation to the *light viewpoint*, the prefix "light" is used.
+
+Furthermore each space might have distinctive variants these are:
+
+*   View: The *translational/rotational* transformation to this space (such as camView, lightView).
+*   Projection: The transform to device coordinates, using a projective matrix (usually perspective, such as camProj, lightProj).
+*   UV: The *texture coordinates* of a data point (obviously important for shadow mapping).
+
+Preferred space for calculations
+--------------------------------
+
+Lighting *calculations* in this tutorial are done *in light space*. The obvious benefit of this is to *avoid convoluted transformations* back and forth between light space and camera space for shadow mapping. As a consequence the light is defined in terms of a transform/rotation matrix and projection, rather than as a light position and direction.
+
+Hard Shadow Mapping
+===================
+
+:html
+    <script type="text/javascript" src="hard-shadow.js"></script>
+
+This [hard-shadow.coffee example] looks a bit better.
+
+Method
+------
+
+The *depth from the lights* point of view is rendered into a texture. This texture is then looked up in the shader and compared to the calculated depth in the camera pass in lightspace.
+
+:code glsl
+    float lightDepth1 = texture2D(sLightDepth, lightUV).r;
+    float lightDepth2 = clamp(length(lightPos)/40.0, 0.0, 1.0);
+    float bias = 0.001;
+    float illuminated = step(lightDepth2, lightDepth1+bias);
+
+If lightDepth1+bias is bigger than lightDepth2 then an area is considered to be illuminated.
+
+The *depth* value is *linear* and clamped to 0 and 1. In hard shadow mapping this serves no immediate purpose but it will become important later on. The *value 40* is chosen because at that distance given the light attenuation (and using a gamma of 2.2) the *observable radiance* has fallen below 0.5/256th and is hence *insignificant*. It is in fact the *far range of the light*.
+
+Shading vs. Shadowing
+---------------------
+
+It deserves mention that the example code does shading (attenuation with distance, influence on the cone, surface radiance evaluation) at the same time as it computes the shadow.
+
+The reason to do it this way is that *shadow mapping* algorithms have *artifacts*. But a lot of these artifacts are actually *not visible* once a scene *is shaded*. Hence it is good practise to evaluate them together.
+
+Drawbacks
+---------
+
+There are some obvious problems with this method:
+
+*   Aliasing is visible from the light depth compare.
+*   The shadow border is very hard.
+
+However it has the advantage of being fairly fast.
+
+Interpolated shadowing
+======================
+
+:html
+    <script type="text/javascript" src="lerp-shadow.js"></script>
+
+The idea of this [lerp-shadow.coffee example] is to linear interpolate shadow lookup. This functionality is present in actual OpenGL as texture2DShadow. We don't have that in WebGL, so let's reimplement it.
+
+Method
+------
+
+I introduce a new texturing function that does the same thing as in hard shadow mapping.
+
+:code glsl
+    float texture2DCompare(sampler2D depths, vec2 uv, float compare){
+        float depth = texture2D(depths, uv).r;
+        return step(compare, depth);
+    }
+
+Then this function is used to perform 4 lookups into the surrounding 4 texels, hence 4 compares are done.
+
+:code glsl
+    float texture2DShadowLerp(sampler2D depths, vec2 size, vec2 uv, float compare){
+        vec2 texelSize = vec2(1.0)/size;
+        vec2 f = fract(uv*size+0.5);
+        vec2 centroidUV = floor(uv*size+0.5)/size;
+
+        float lb = texture2DCompare(depths, centroidUV+texelSize*vec2(0.0, 0.0), compare);
+        float lt = texture2DCompare(depths, centroidUV+texelSize*vec2(0.0, 1.0), compare);
+        float rb = texture2DCompare(depths, centroidUV+texelSize*vec2(1.0, 0.0), compare);
+        float rt = texture2DCompare(depths, centroidUV+texelSize*vec2(1.0, 1.0), compare);
+        float a = mix(lb, lt, f.y);
+        float b = mix(rb, rt, f.y);
+        float c = mix(a, b, f.x);
+        return c;
+    }
+
+The resulting illumination results are bilinearly interpolated and returned.
+
+Drawbacks
+---------
+
+*   It does *not* offer *a much improvement*, it just smooths the shadowing a bit between texels.
+*   The *cost has gone up* as 4 lookups are performed now. They are expensive because shadow lookups are not vram/cache coherent.
+*   The bilinear interpolation *introduces artifacts* of its own such as the typical diamond pattern.
+*   There can be depth error artifacts because now linear interpolation isn't a depth estimator
+*   Aliasing is still clearly visible
+
+Percentage Closer Filtering (PCF)
+=================================
+
+:html
+    <script type="text/javascript" src="pcf-shadow.js"></script>
+
+The idea behind this [pcf-shadow.coffee example] is to simply *average the result of the compare* over a patch surrounding the uv coordinate. It offers a similar result to linear interpolation, but up close it looks pretty horrible.
+
+Method
+------
+
+We replace the texture2DShadowLerp function with the PCF function. This looks up the shadow compare for a 5x5 region with the UV coordinate at the center, then divides the result by 25.
+
+:code glsl
+    float PCF(sampler2D depths, vec2 size, vec2 uv, float compare){
+        float result = 0.0;
+        for(int x=-2; x<=2; x++){
+            for(int y=-2; y<=2; y++){
+                vec2 off = vec2(x,y)/size;
+                result += texture2DCompare(depths, uv+off, compare);
+            }
+        }
+        return result/25.0;
+    }
+
+Drawbacks
+---------
+
+*   It is even *more expensive* than linear interpolation.
+*   It introduces a banding artifacts over the sample kernel.
+
+PCF and Interpolation
+=====================
+
+:html
+    <script type="text/javascript" src="pcf-lerp-shadow.js"></script>
+
+This [pcf-lerp-shadow.coffee example] combines linear interpolation and PCF. This is starting to look fairly acceptable.
+
+Method
+------
+
+:code glsl
+    float PCF(sampler2D depths, vec2 size, vec2 uv, float compare){
+        float result = 0.0;
+        for(int x=-1; x<=1; x++){
+            for(int y=-1; y<=1; y++){
+                vec2 off = vec2(x,y)/size;
+                result += texture2DShadowLerp(depths, size, uv+off, compare);
+            }
+        }
+        return result/9.0;
+    }
+
+The size of the kernel is reduced since with linear interpolation it does not have to be very big. The kernel banding is mostly gone. Some artifacts of aliasing are still visible, but much less so than previously. The quality of this method is quite good, of course at a cost.
+
+Drawbacks
+---------
+
+*   It's even more expensive than PCF alone. Although if there was a texture2DShadow function built in, that would obviously be a faster than reimplementing it in ESSL.
+
+Variance Shadow Mapping (VSM)
+=============================
+
+:html
+    <script type="text/javascript" src="vsm-shadow.js"></script>
+
+The idea behind [vsm-shadow.coffee this] is to statistically measure the *likelyhood of occlusion* based on [http://en.wikipedia.org/wiki/Variance variance]. [http://en.wikipedia.org/wiki/Chebyshev's_inequality Chebeyshevs inequality] is used to compute an upper bound for the occlusion. It looks very similar to linear interpolated shadow mapping.
+
+There several advantages to the technique.
+
+*   It is *very cheap* (just one lookup per fragment)
+*   It makes it possible to *pre-filter the depths*
+
+Important: VSM only works with linear depths starting at 0 near the light and going to 1 to the far range of the light.
+
+Method
+------
+
+First we need to compute the moments of the depths. This is done during light depth rendering:
+
+:code glsl
+    float dx = dFdx(depth);
+    float dy = dFdy(depth);
+    gl_FragColor = vec4(depth, pow(depth, 2.0) + 0.25*(dx*dx + dy*dy), 0.0, 1.0);
+
+In order to write the variance function we need a linstep function analogous to smoothstep:
+
+:code glsl
+    float linstep(float low, float high, float v){
+        return clamp((v-low)/(high-low), 0.0, 1.0);
+    }
+
+Then the variance has to be used to compute the shadowing function:
+
+:code glsl
+    float VSM(sampler2D depths, vec2 uv, float compare){
+        vec2 moments = texture2D(depths, uv).xy;
+        float p = smoothstep(compare-0.02, compare, moments.x);
+        float variance = max(moments.y - moments.x*moments.x, -0.001);
+        float d = compare - moments.x;
+        float p_max = linstep(0.2, 1.0, variance / (variance + d*d));
+        return clamp(max(p, p_max), 0.0, 1.0);
+    }
+
+There are a couple of noteworthy ways in which this works.
+
+*   "p" holds a hard shadow comparision, however the bias is applied softly via a smoothstep
+*   p_max is stepped between 0.2 and 1.0, this reduces an artifact known as light bleeding.
+
+Drawbacks
+---------
+
+*   In its plain form (unfiltered) VSM isn't better than linear interpolated shadows.
+*   Due to a need to sample the front surfaces, there can be *more depth error banding issues*.
+
+Antialiased and Filtered VSM
+============================
+
+:html
+    <script type="text/javascript" src="vsm-filtered-shadow.js"></script>
+
+The idea of this [vsm-filtered-shadow.coffee example] is to *antialias* the shadow depths first and then *blur* them slightly. The result is *substantially better* than anything so far.
+
+Antialias
+---------
+
+If there was Framebuffer MSAA or similar in WebGL we could use this. As it is, this is not a choice, so let's reimplement anti-aliasing in a fast brute force method. The light depth is rendered at 256x256 resolution and then supersampled efficiently with linear interpolation first to 128x128 and then to 64x64. This is equivalent to *4x4 MSAA*.
+
+The definition of the filters:
+
+:code coffeescript
+    downsample128 = new Filter 128, '''//essl
+        return get(0.0, 0.0);
+    '''
+
+    downsample64 = new Filter 64, '''//essl
+        return get(0.0, 0.0);
+    '''
+
+Applying them after rendering the light depth:
+
+:code coffeescript
+    downsample128.apply lightDepthTexture
+    downsample64.apply downsample128
+
+Blur
+----
+
+A simple 3x3 box filter is then used on the downsampled 64x64 light depths.
+
+:code coffeescript
+    boxFilter = new Filter 64, '''//essl
+        vec3 result = vec3(0.0);
+        for(int x=-1; x<=1; x++){
+            for(int y=-1; y<=1; y++){
+                result += get(x,y);
+            }
+        }
+        return result/9.0;
+    '''
+
+And applying after downsampling:
+
+:code coffeescript
+    boxFilter.apply downsample64
+
+Now instead of passing in the lightDepthTexture for VSM, we pass in the boxFilter texture, the VSM code is unchanged:
+
+:code coffeescript
+    .sampler('sLightDepth', boxFilter)
+
+Advantage
+---------
+
+Unlike when filtering at shadow application, the filtering with VSM can be done prior at light depth texture resolution, this offers the following advantages:
+
+*   Filtering the light depth texture is *VRAM/cache coherent*.
+*   The *resolution* of the light depth texture is usually *smaller* than fragments on screen (this example only uses 64x64 light depth texels)
+*   In forward shading there *might be overdraw*, which would cause multiple lookups into the light depth texture that are never used.

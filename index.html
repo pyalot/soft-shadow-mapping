@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style type="text/css">
+            div.example{
+                background-color: #333;
+                width: 500px;
+                height: 300px;
+                position: relative;
+            }
+
+            div.example div.error{
+                color: red;
+                font-weight: bold;
+                text-align: center;
+                position: absolute;
+                top: 5px;
+                width: 500px;
+            }
+            div.example div.error-info{
+                color: white;
+                text-align: center;
+                position: absolute;
+                top: 20px;
+                width: 500px;
+            }
+
+            div.example img{
+                margin: 0;
+                padding: 0;
+            }
+
+            div.example img.toggle-fullscreen{
+                position: absolute;
+                bottom: 0px;
+                right: 5px;
+                cursor: pointer;
+            }
+            div.example canvas{
+                width: 500px;
+                height: 300px;
+                -moz-user-select: none;
+                -webkit-user-select: none;
+                -o-user-select: none;
+                user-select: none;
+                cursor: move;
+            }
+            div.example div.controls{
+                position: absolute;
+                top: 10px;
+                right: 10px;
+            }
+
+            div.example.fullscreen,
+            div.example.fullscreen canvas{
+                width: 100%;
+                height: 100%;
+            }
+            div.example label{
+                color: white;
+            }
+            div.example label,
+            div.example div{
+                text-shadow: 0px 3px 8px black;
+            }
+        </style>
+        <script src="jquery.js"></script>
+        <script src="framework.js"></script>
+        <script src="meshes.js"></script>
+    </head>
+    <body>
+        <h1>No Shadow</h1>
+        <script src="no-shadow.js"></script>
+        <h1>Hard</h1>
+        <script  src="hard-shadow.js"></script>
+        <h1>Interpolated</h1>
+        <script src="lerp-shadow.js"></script>
+        <h1>PCF</h1>
+        <script src="pcf-shadow.js"></script>
+        <h1>PCF and Interpolated</h1>
+        <script src="pcf-lerp-shadow.js"></script>
+        <h1>VSM</h1>
+        <script src="vsm-shadow.js"></script>
+        <h1>Antialiased and Blurred VSM</h1>
+        <script src="vsm-filtered-shadow.js"></script>
+    </body>
+</html>
