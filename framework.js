@@ -706,7 +706,7 @@
   Shader = (function() {
     var boilerplate;
 
-    boilerplate = 'precision highp int;\nprecision highp float;\nprecision highp vec2;\nprecision highp vec3;\nprecision highp vec4;\n#define PI 3.141592653589793\n#define TAU 6.283185307179586\n#define PIH 1.5707963267948966';
+    boilerplate = 'precision highp int;\nprecision highp float;\n#define PI 3.141592653589793\n#define TAU 6.283185307179586\n#define PIH 1.5707963267948966';
 
     function Shader(framework, _arg) {
       var common, fragment, vertex;

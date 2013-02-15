@@ -549,9 +549,6 @@ class Shader
     boilerplate = '''
         precision highp int;
         precision highp float;
-        precision highp vec2;
-        precision highp vec3;
-        precision highp vec4;
         #define PI 3.141592653589793
         #define TAU 6.283185307179586
         #define PIH 1.5707963267948966
