@@ -547,8 +547,13 @@ class Mat4
 
 class Shader
     boilerplate = '''
-        precision highp int;
-        precision highp float;
+        #ifdef GL_FRAGMENT_PRECISION_HIGH
+            precision highp int;
+            precision highp float;
+        #else
+            precision mediump int;
+            precision mediump float;
+        #endif
         #define PI 3.141592653589793
         #define TAU 6.283185307179586
         #define PIH 1.5707963267948966

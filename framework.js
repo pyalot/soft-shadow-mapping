@@ -706,7 +706,7 @@
   Shader = (function() {
     var boilerplate;
 
-    boilerplate = 'precision highp int;\nprecision highp float;\n#define PI 3.141592653589793\n#define TAU 6.283185307179586\n#define PIH 1.5707963267948966';
+    boilerplate = '#ifdef GL_FRAGMENT_PRECISION_HIGH\n    precision highp int;\n    precision highp float;\n#else\n    precision mediump int;\n    precision mediump float;\n#endif\n#define PI 3.141592653589793\n#define TAU 6.283185307179586\n#define PIH 1.5707963267948966';
 
     function Shader(framework, _arg) {
       var common, fragment, vertex;
