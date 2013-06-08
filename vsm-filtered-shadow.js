@@ -1,5 +1,5 @@
 (function() {
-  var Filter, animate, boxFilter, camDist, camPitch, camProj, camRot, camView, canvas, container, controls, counter, cubeGeom, displayShader, downsample128, downsample64, draw, drawCamera, drawLight, drawScene, fullscreenImg, gl, hover, lightDepthTexture, lightFramebuffer, lightProj, lightRot, lightShader, lightView, model, mousemove, mouseup, name, offset, planeGeom, quad;
+  var Filter, animate, boxFilter, camDist, camPitch, camProj, camRot, camView, canvas, container, controls, counter, cubeGeom, displayShader, downsample128, downsample64, draw, drawCamera, drawLight, drawScene, floatExt, fullscreenImg, gl, hover, lightDepthTexture, lightFramebuffer, lightProj, lightRot, lightShader, lightView, model, mousemove, mouseup, name, offset, planeGeom, quad;
 
   name = 'vsm-filtered-shadow';
 
@@ -11,9 +11,10 @@
 
   try {
     gl = new WebGLFramework(canvas).depthTest();
-    gl.getExt('OES_texture_float');
+    floatExt = gl.getFloatExtension({
+      require: ['renderable', 'filterable']
+    });
     gl.getExt('OES_standard_derivatives');
-    gl.assertFloatRenderTarget();
   } catch (error) {
     container.empty();
     $('<div class="error"></div>').text(error).appendTo(container);
@@ -61,19 +62,19 @@
   quad = gl.drawable(meshes.quad);
 
   displayShader = gl.shader({
-    common: '#line 54 vsm-filtered-shadow.coffee\nvarying vec3 vWorldNormal; varying vec4 vWorldPosition;\nuniform mat4 camProj, camView;\nuniform mat4 lightProj, lightView; uniform mat3 lightRot;\nuniform mat4 model;',
-    vertex: '#line 60 vsm-filtered-shadow.coffee\nattribute vec3 position, normal;\n\nvoid main(){\n    vWorldNormal = normal;\n    vWorldPosition = model * vec4(position, 1.0);\n    gl_Position = camProj * camView * vWorldPosition;\n}',
-    fragment: '#line 69 vsm-filtered-shadow.coffee\nuniform sampler2D sLightDepth;\n\nfloat linstep(float low, float high, float v){\n    return clamp((v-low)/(high-low), 0.0, 1.0);\n}\n\nfloat VSM(sampler2D depths, vec2 uv, float compare){\n    vec2 moments = texture2D(depths, uv).xy;\n    float p = smoothstep(compare-0.02, compare, moments.x);\n    float variance = max(moments.y - moments.x*moments.x, -0.001);\n    float d = compare - moments.x;\n    float p_max = linstep(0.2, 1.0, variance / (variance + d*d));\n    return clamp(max(p, p_max), 0.0, 1.0);\n}\n\nfloat attenuation(vec3 dir){\n    float dist = length(dir);\n    float radiance = 1.0/(1.0+pow(dist/10.0, 2.0));\n    return clamp(radiance*10.0, 0.0, 1.0);\n}\n\nfloat influence(vec3 normal, float coneAngle){\n    float minConeAngle = ((360.0-coneAngle-10.0)/360.0)*PI;\n    float maxConeAngle = ((360.0-coneAngle)/360.0)*PI;\n    return smoothstep(minConeAngle, maxConeAngle, acos(normal.z));\n}\n\nfloat lambert(vec3 surfaceNormal, vec3 lightDirNormal){\n    return max(0.0, dot(surfaceNormal, lightDirNormal));\n}\n\nvec3 skyLight(vec3 normal){\n    return vec3(smoothstep(0.0, PI, PI-acos(normal.y)))*0.4;\n}\n\nvec3 gamma(vec3 color){\n    return pow(color, vec3(2.2));\n}\n\nvoid main(){\n    vec3 worldNormal = normalize(vWorldNormal);\n\n    vec3 camPos = (camView * vWorldPosition).xyz;\n    vec3 lightPos = (lightView * vWorldPosition).xyz;\n    vec3 lightPosNormal = normalize(lightPos);\n    vec3 lightSurfaceNormal = lightRot * worldNormal;\n    vec4 lightDevice = lightProj * vec4(lightPos, 1.0);\n    vec2 lightDeviceNormal = lightDevice.xy/lightDevice.w;\n    vec2 lightUV = lightDeviceNormal*0.5+0.5;\n\n    // shadow calculation\n    float lightDepth2 = clamp(length(lightPos)/40.0, 0.0, 1.0);\n    float illuminated = VSM(sLightDepth, lightUV, lightDepth2);\n    \n    vec3 excident = (\n        skyLight(worldNormal) +\n        lambert(lightSurfaceNormal, -lightPosNormal) *\n        influence(lightPosNormal, 55.0) *\n        attenuation(lightPos) *\n        illuminated\n    );\n    gl_FragColor = vec4(gamma(excident), 1.0);\n}'
+    common: '#line 56 vsm-filtered-shadow.coffee\nvarying vec3 vWorldNormal; varying vec4 vWorldPosition;\nuniform mat4 camProj, camView;\nuniform mat4 lightProj, lightView; uniform mat3 lightRot;\nuniform mat4 model;',
+    vertex: '#line 62 vsm-filtered-shadow.coffee\nattribute vec3 position, normal;\n\nvoid main(){\n    vWorldNormal = normal;\n    vWorldPosition = model * vec4(position, 1.0);\n    gl_Position = camProj * camView * vWorldPosition;\n}',
+    fragment: '#line 71 vsm-filtered-shadow.coffee\nuniform sampler2D sLightDepth;\n\nfloat linstep(float low, float high, float v){\n    return clamp((v-low)/(high-low), 0.0, 1.0);\n}\n\nfloat VSM(sampler2D depths, vec2 uv, float compare){\n    vec2 moments = texture2D(depths, uv).xy;\n    float p = smoothstep(compare-0.02, compare, moments.x);\n    float variance = max(moments.y - moments.x*moments.x, -0.001);\n    float d = compare - moments.x;\n    float p_max = linstep(0.2, 1.0, variance / (variance + d*d));\n    return clamp(max(p, p_max), 0.0, 1.0);\n}\n\nfloat attenuation(vec3 dir){\n    float dist = length(dir);\n    float radiance = 1.0/(1.0+pow(dist/10.0, 2.0));\n    return clamp(radiance*10.0, 0.0, 1.0);\n}\n\nfloat influence(vec3 normal, float coneAngle){\n    float minConeAngle = ((360.0-coneAngle-10.0)/360.0)*PI;\n    float maxConeAngle = ((360.0-coneAngle)/360.0)*PI;\n    return smoothstep(minConeAngle, maxConeAngle, acos(normal.z));\n}\n\nfloat lambert(vec3 surfaceNormal, vec3 lightDirNormal){\n    return max(0.0, dot(surfaceNormal, lightDirNormal));\n}\n\nvec3 skyLight(vec3 normal){\n    return vec3(smoothstep(0.0, PI, PI-acos(normal.y)))*0.4;\n}\n\nvec3 gamma(vec3 color){\n    return pow(color, vec3(2.2));\n}\n\nvoid main(){\n    vec3 worldNormal = normalize(vWorldNormal);\n\n    vec3 camPos = (camView * vWorldPosition).xyz;\n    vec3 lightPos = (lightView * vWorldPosition).xyz;\n    vec3 lightPosNormal = normalize(lightPos);\n    vec3 lightSurfaceNormal = lightRot * worldNormal;\n    vec4 lightDevice = lightProj * vec4(lightPos, 1.0);\n    vec2 lightDeviceNormal = lightDevice.xy/lightDevice.w;\n    vec2 lightUV = lightDeviceNormal*0.5+0.5;\n\n    // shadow calculation\n    float lightDepth2 = clamp(length(lightPos)/40.0, 0.0, 1.0);\n    float illuminated = VSM(sLightDepth, lightUV, lightDepth2);\n    \n    vec3 excident = (\n        skyLight(worldNormal) +\n        lambert(lightSurfaceNormal, -lightPosNormal) *\n        influence(lightPosNormal, 55.0) *\n        attenuation(lightPos) *\n        illuminated\n    );\n    gl_FragColor = vec4(gamma(excident), 1.0);\n}'
   });
 
   lightShader = gl.shader({
-    common: '#line 136 vsm-filtered-shadow.coffee\nvarying vec3 vWorldNormal; varying vec4 vWorldPosition;\nuniform mat4 lightProj, lightView; uniform mat3 lightRot;\nuniform mat4 model;',
-    vertex: '#line 141 vsm-filtered-shadow.coffee\nattribute vec3 position, normal;\n\nvoid main(){\n    vWorldNormal = normal;\n    vWorldPosition = model * vec4(position, 1.0);\n    gl_Position = lightProj * lightView * vWorldPosition;\n}',
-    fragment: '#line 150 vsm-filtered-shadow.coffee\n#extension GL_OES_standard_derivatives : enable\nvoid main(){\n    vec3 worldNormal = normalize(vWorldNormal);\n    vec3 lightPos = (lightView * vWorldPosition).xyz;\n    float depth = clamp(length(lightPos)/40.0, 0.0, 1.0);\n    float dx = dFdx(depth);\n    float dy = dFdy(depth);\n    gl_FragColor = vec4(depth, pow(depth, 2.0) + 0.25*(dx*dx + dy*dy), 0.0, 1.0);\n}'
+    common: '#line 138 vsm-filtered-shadow.coffee\nvarying vec3 vWorldNormal; varying vec4 vWorldPosition;\nuniform mat4 lightProj, lightView; uniform mat3 lightRot;\nuniform mat4 model;',
+    vertex: '#line 143 vsm-filtered-shadow.coffee\nattribute vec3 position, normal;\n\nvoid main(){\n    vWorldNormal = normal;\n    vWorldPosition = model * vec4(position, 1.0);\n    gl_Position = lightProj * lightView * vWorldPosition;\n}',
+    fragment: '#line 152 vsm-filtered-shadow.coffee\n#extension GL_OES_standard_derivatives : enable\nvoid main(){\n    vec3 worldNormal = normalize(vWorldNormal);\n    vec3 lightPos = (lightView * vWorldPosition).xyz;\n    float depth = clamp(length(lightPos)/40.0, 0.0, 1.0);\n    float dx = dFdx(depth);\n    float dy = dFdy(depth);\n    gl_FragColor = vec4(depth, pow(depth, 2.0) + 0.25*(dx*dx + dy*dy), 0.0, 1.0);\n}'
   });
 
   lightDepthTexture = gl.texture({
-    type: 'float',
+    type: floatExt.type,
     channels: 'rgba'
   }).bind().setSize(256, 256).linear().clampToEdge();
 
@@ -84,14 +85,14 @@
     function Filter(size, filter) {
       this.size = size;
       this.output = gl.texture({
-        type: 'float',
+        type: floatExt.type,
         channels: 'rgba'
       }).bind().setSize(this.size, this.size).linear().clampToEdge();
       this.framebuffer = gl.framebuffer().bind().color(this.output).unbind();
       this.shader = gl.shader({
-        common: '#line 171 vsm-filtered-shadow.coffee\nvarying vec2 texcoord;',
-        vertex: '#line 174 vsm-filtered-shadow.coffee\nattribute vec2 position;\n\nvoid main(){\n    texcoord = position*0.5+0.5;\n    gl_Position = vec4(position, 0.0, 1.0);\n}',
-        fragment: "#line 183 vsm-filtered-shadow.coffee\nuniform vec2 viewport;\nuniform sampler2D source;\n\nvec3 get(float x, float y){\n    vec2 off = vec2(x, y);\n    return texture2D(source, texcoord+off/viewport).rgb;\n}\nvec3 get(int x, int y){\n    vec2 off = vec2(x, y);\n    return texture2D(source, texcoord+off/viewport).rgb;\n}\nvec3 filter(){\n    " + filter + "\n}\nvoid main(){\n    gl_FragColor = vec4(filter(), 1.0);\n}"
+        common: '#line 174 vsm-filtered-shadow.coffee\nvarying vec2 texcoord;',
+        vertex: '#line 177 vsm-filtered-shadow.coffee\nattribute vec2 position;\n\nvoid main(){\n    texcoord = position*0.5+0.5;\n    gl_Position = vec4(position, 0.0, 1.0);\n}',
+        fragment: "#line 186 vsm-filtered-shadow.coffee\nuniform vec2 viewport;\nuniform sampler2D source;\n\nvec3 get(float x, float y){\n    vec2 off = vec2(x, y);\n    return texture2D(source, texcoord+off/viewport).rgb;\n}\nvec3 get(int x, int y){\n    vec2 off = vec2(x, y);\n    return texture2D(source, texcoord+off/viewport).rgb;\n}\nvec3 filter(){\n    " + filter + "\n}\nvoid main(){\n    gl_FragColor = vec4(filter(), 1.0);\n}"
       });
     }
 
@@ -110,11 +111,11 @@
 
   })();
 
-  downsample128 = new Filter(128, '#line 213 vsm-filtered-shadow.coffee\nreturn get(0.0, 0.0);');
+  downsample128 = new Filter(128, '#line 216 vsm-filtered-shadow.coffee\nreturn get(0.0, 0.0);');
 
-  downsample64 = new Filter(64, '#line 217 vsm-filtered-shadow.coffee\nreturn get(0.0, 0.0);');
+  downsample64 = new Filter(64, '#line 220 vsm-filtered-shadow.coffee\nreturn get(0.0, 0.0);');
 
-  boxFilter = new Filter(64, '#line 221 vsm-filtered-shadow.coffee\nvec3 result = vec3(0.0);\nfor(int x=-1; x<=1; x++){\n    for(int y=-1; y<=1; y++){\n        result += get(x,y);\n    }\n}\nreturn result/9.0;');
+  boxFilter = new Filter(64, '#line 224 vsm-filtered-shadow.coffee\nvec3 result = vec3(0.0);\nfor(int x=-1; x<=1; x++){\n    for(int y=-1; y<=1; y++){\n        result += get(x,y);\n    }\n}\nreturn result/9.0;');
 
   camProj = gl.mat4();
 

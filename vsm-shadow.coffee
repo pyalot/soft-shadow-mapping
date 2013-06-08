@@ -8,9 +8,11 @@ canvas = $('<canvas></canvas>').appendTo(container)[0]
 try
     gl = new WebGLFramework(canvas)
         .depthTest()
-    gl.getExt('OES_texture_float')
+
+    floatExt = gl.getFloatExtension
+        require: ['renderable', 'filterable']
+
     gl.getExt('OES_standard_derivatives')
-    gl.assertFloatRenderTarget()
 catch error
     container.empty()
     $('<div class="error"></div>').text(error).appendTo(container)
@@ -156,7 +158,7 @@ lightShader = gl.shader
             gl_FragColor = vec4(depth, pow(depth, 2.0) + 0.25*(dx*dx + dy*dy), 0.0, 1.0);
         }
     '''
-lightDepthTexture = gl.texture(type:'float', channels:'rgba').bind().setSize(64, 64).linear().clampToEdge()
+lightDepthTexture = gl.texture(type:floatExt.type, channels:'rgba').bind().setSize(64, 64).linear().clampToEdge()
 lightFramebuffer = gl.framebuffer().bind().color(lightDepthTexture).depth().unbind()
 
 ## matrix setup ##

@@ -755,7 +755,12 @@ class Texture
     constructor: (@framework, params={}) ->
         @gl = @framework.gl
         @channels = @gl[(params.channels ? 'rgb').toUpperCase()]
-        @type = @gl[(params.type ? 'unsigned_byte').toUpperCase()]
+
+        if typeof(params.type) == 'number'
+            @type = params.type
+        else
+            @type = @gl[(params.type ? 'unsigned_byte').toUpperCase()]
+
         @target = @gl.TEXTURE_2D
         @handle = @gl.createTexture()
 
@@ -954,9 +959,9 @@ window.WebGLFramework = class WebGLFramework
 
     now: -> performance.now()/1000
        
-    getExt: (name) ->
+    getExt: (name, throws=true) ->
         ext = @gl.getExtension name
-        if not ext
+        if not ext and throws
             throw "WebGL Extension not supported: #{name}"
         return ext
 
@@ -989,17 +994,8 @@ window.WebGLFramework = class WebGLFramework
         if @isFullscreen() then @exitFullscreen()
         else @requestFullscreen(elem)
 
-    assertFloatRenderTarget: (channels='rgba') ->
-        texture = @texture(type:'float', channels:channels).bind().setSize(2, 2).linear()
-        fbo = @framebuffer()
-        try
-            fbo.bind().color(texture).unbind()
-        catch error
-            throw 'Floating point render target not supported'
-        finally
-            fbo.destroy()
-            texture.destroy()
-    
+    getFloatExtension: (spec) -> @gl.getFloatExtension(spec)
+
     cullFace: (value='back') ->
         if value
             @gl.enable @gl.CULL_FACE

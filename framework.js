@@ -996,7 +996,11 @@
       }
       this.gl = this.framework.gl;
       this.channels = this.gl[((_ref = params.channels) != null ? _ref : 'rgb').toUpperCase()];
-      this.type = this.gl[((_ref1 = params.type) != null ? _ref1 : 'unsigned_byte').toUpperCase()];
+      if (typeof params.type === 'number') {
+        this.type = params.type;
+      } else {
+        this.type = this.gl[((_ref1 = params.type) != null ? _ref1 : 'unsigned_byte').toUpperCase()];
+      }
       this.target = this.gl.TEXTURE_2D;
       this.handle = this.gl.createTexture();
     }
@@ -1323,10 +1327,13 @@
       return performance.now() / 1000;
     };
 
-    WebGLFramework.prototype.getExt = function(name) {
+    WebGLFramework.prototype.getExt = function(name, throws) {
       var ext;
+      if (throws == null) {
+        throws = true;
+      }
       ext = this.gl.getExtension(name);
-      if (!ext) {
+      if (!ext && throws) {
         throw "WebGL Extension not supported: " + name;
       }
       return ext;
@@ -1386,24 +1393,8 @@
       }
     };
 
-    WebGLFramework.prototype.assertFloatRenderTarget = function(channels) {
-      var fbo, texture;
-      if (channels == null) {
-        channels = 'rgba';
-      }
-      texture = this.texture({
-        type: 'float',
-        channels: channels
-      }).bind().setSize(2, 2).linear();
-      fbo = this.framebuffer();
-      try {
-        return fbo.bind().color(texture).unbind();
-      } catch (error) {
-        throw 'Floating point render target not supported';
-      } finally {
-        fbo.destroy();
-        texture.destroy();
-      }
+    WebGLFramework.prototype.getFloatExtension = function(spec) {
+      return this.gl.getFloatExtension(spec);
     };
 
     WebGLFramework.prototype.cullFace = function(value) {
